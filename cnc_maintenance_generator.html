@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CNC Maintenance G-Code Generator — Grease & Service Routines</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Simple style for the "Copied!" message */
+        .copy-button.copied {
+            background-color: #22c55e; /* green-500 */
+        }
+        /* Ensure modals are on top */
+        .modal {
+            z-index: 50;
+        }
+        .modal-overlay {
+            z-index: 40;
+        }
+        /* resizable text area */
+        #gcode-wrap { 
+            resize: vertical; 
+            min-height: 24rem; /* 384px */
+            overflow: hidden; /* Contains the textarea */
+        }
+        #gcode-output {
+            height: 100%; /* Make textarea fill the resizable wrapper */
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 text-gray-800 font-sans p-4 md:p-8">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <header class="flex items-center justify-between mb-6">
+            <div class="space-y-1">
+                 <h1 class="text-2xl font-bold">CNC Maintenance — Grease & Exercise Generator</h1>
+                 <!-- UPDATED Subtitle -->
+                 <div class="text-sm text-gray-600">GRBL-compatible • Woodworking-focused</div>
+            </div>
+            <button type="button" id="help-btn" class="py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                Help
+            </button>
+        </header>
+
+        <!-- Single-column grid -->
+        <div class="grid grid-cols-1 gap-8">
+            
+            <!-- Top: Settings Form -->
+            <section class="bg-white p-6 rounded-lg shadow-lg">
+                <form id="gcode-form" class="space-y-6">
+
+                    <!-- 1. Axis Limits -->
+                    <fieldset>
+                        <legend class="text-lg font-semibold text-gray-900 mb-3">1. Axis Limits (Absolute Coords)</legend>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <!-- X-Axis -->
+                            <div>
+                                <label for="x-start" class="block text-sm font-medium text-gray-700">X Start (Home)</label>
+                                <input type="number" id="x-start" value="-10" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                            <div>
+                                <label for="x-end" class="block text-sm font-medium text-gray-700">X End (Far)</label>
+                                <input type="number" id="x-end" value="-1270" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                            <div><!-- Spacer --></div>
+                            
+                            <!-- Y-Axis -->
+                            <div>
+                                <label for="y-start" class="block text-sm font-medium text-gray-700">Y Start (Home)</label>
+                                <input type="number" id="y-start" value="-10" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                            <div>
+                                <label for="y-end" class="block text-sm font-medium text-gray-700">Y End (Front)</label>
+                                <input type="number" id="y-end" value="-1240" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                            <div><!-- Spacer --></div>
+
+                            <!-- Z-Axis -->
+                            <div>
+                                <label for="z-start" class="block text-sm font-medium text-gray-700">Z Start (Top)</label>
+                                <input type="number" id="z-start" value="-10" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                            <div>
+                                <label for="z-end" class="block text-sm font-medium text-gray-700">Z End (Down)</label>
+                                <input type="number" id="z-end" value="-120" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <!-- 2. NEW: Routine Selection -->
+                    <fieldset class="border-t pt-4">
+                        <legend class="text-lg font-semibold text-gray-900 mb-3">2. Routine Selection</legend>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Select Axes to Exercise</label>
+                                <div class="mt-2 space-y-2">
+                                    <div class="flex items-center">
+                                        <input id="run-x" type="checkbox" checked class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 config-input">
+                                        <label for="run-x" class="ml-2 block text-sm text-gray-900">X-Axis</label>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <input id="run-y" type="checkbox" checked class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 config-input">
+                                        <label for="run-y" class="ml-2 block text-sm text-gray-900">Y-Axis</label>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <input id="run-z" type="checkbox" checked class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 config-input">
+                                        <label for="run-z" class="ml-2 block text-sm text-gray-900">Z-Axis</label>
+                                    </div>
+                                </div>
+                            </div>
+                             <div>
+                                <label for="cycles" class="block text-sm font-medium text-gray-700">Grease Cycles</label>
+                                <input type="number" id="cycles" value="1" min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                             <div>
+                                <label for="z-cycles" class="block text-sm font-medium text-gray-700">Z-Axis Sub-Cycles</label>
+                                <input type="number" id="z-cycles" value="2" min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <!-- 3. Motion Settings -->
+                    <fieldset class="border-t pt-4">
+                        <legend class="text-lg font-semibold text-gray-900 mb-3">3. Motion Settings</legend>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <!-- XY Pecking -->
+                            <div>
+                                <label for="xy-min-fwd-step" class="block text-sm font-medium text-gray-700">XY Min Fwd Step (mm)</label>
+                                <input type="number" id="xy-min-fwd-step" value="25" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                            <div>
+                                <label for="xy-max-fwd-step" class="block text-sm font-medium text-gray-700">XY Max Fwd Step (mm)</label>
+                                <input type="number" id="xy-max-fwd-step" value="35" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                            <div>
+                                <label for="xy-rev-step" class="block text-sm font-medium text-gray-700">XY Rev Step (mm)</label>
+                                <input type="number" id="xy-rev-step" value="5" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+
+                            <!-- Z Pecking -->
+                            <div>
+                                <label for="z-min-fwd-step" class="block text-sm font-medium text-gray-700">Z Min Fwd Step (mm)</label>
+                                <input type="number" id="z-min-fwd-step" value="5" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                            <div>
+                                <label for="z-max-fwd-step" class="block text-sm font-medium text-gray-700">Z Max Fwd Step (mm)</label>
+                                <input type="number" id="z-max-fwd-step" value="10" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                            <div>
+                                <label for="z-rev-step" class="block text-sm font-medium text-gray-700">Z Rev Step (mm)</label>
+                                <input type="number" id="z-rev-step" value="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                            
+                            <!-- Speeds -->
+                            <div>
+                                <label for="xy-feed" class="block text-sm font-medium text-gray-700">XY Peck Speed (F)</label>
+                                <input type="number" id="xy-feed" value="1000" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                            <div>
+                                <label for="z-feed" class="block text-sm font-medium text-gray-700">Z Peck Speed (F)</label>
+                                <input type="number" id="z-feed" value="500" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                             <div>
+                                <label for="rapid-feed" class="block text-sm font-medium text-gray-700">Rapid Feed (F)</label>
+                                <input type="number" id="rapid-feed" value="3000" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                            
+                            <!-- Row 4: Exercise & Pause -->
+                             <div>
+                                <label for="exercise-feed" class="block text-sm font-medium text-gray-700">Exercise Feed (F)</label>
+                                <input type="number" id="exercise-feed" value="3000" min="100" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                             <div>
+                                <label for="pause-between" class="block text-sm font-medium text-gray-700">Pause Between Routines (sec)</label>
+                                <input type="number" id="pause-between" value="5" min="0" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <!-- 4. Positional Controls -->
+                    <fieldset class="border-t pt-4">
+                        <legend class="text-lg font-semibold text-gray-900 mb-3">4. Positional Controls</legend>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <!-- Row 1 -->
+                            <div>
+                                <label for="x-cycle-y-pos" class="block text-sm font-medium text-gray-700">Y-Pos for X-Cycling</label>
+                                <input type="number" id="x-cycle-y-pos" value="-1240" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                            <div>
+                                <label for="y-cycle-x-pos" class="block text-sm font-medium text-gray-700">X-Pos for Y-Cycling</label>
+                                <input type="number" id="y-cycle-x-pos" value="-10" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                            <div><!-- Spacer --></div>
+                             <!-- Row 2 -->
+                            <div>
+                                <label for="z-cycle-x-pos" class="block text-sm font-medium text-gray-700">X-Pos for Z-Cycling</label>
+                                <input type="number" id="z-cycle-x-pos" value="-10" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                            <div>
+                                <label for="z-cycle-y-pos" class="block text-sm font-medium text-gray-700">Y-Pos for Z-Cycling</label>
+                                <input type="number" id="z-cycle-y-pos" value="-1240" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 config-input">
+                            </div>
+                            <div><!-- Spacer --></div>
+                        </div>
+                    </fieldset>
+                    
+                    <!-- 5. Actions -->
+                    <section class="border-t pt-4">
+                        <div class="flex justify-between items-center mb-3">
+                          <h2 class="text-lg font-semibold">5. Actions</h2>
+                          <div class="text-sm text-gray-600">Generate, review, and export</div>
+                        </div>
+                
+                        <!-- UPDATED Grid Layout -->
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <button id="generate-grease-btn" type="button" class="py-3 px-4 rounded-md shadow-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Generate Greasing G-Code</button>
+                          <button id="generate-exercise-btn" type="button" class="py-3 px-4 rounded-md shadow-sm font-medium bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Generate Exercise G-Code</button>
+                          <button id="reset-defaults-btn" type="button" class="py-3 px-4 rounded-md shadow-sm font-medium bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">Reset Defaults</button>
+                          <button id="copy-btn" type="button" class="sm:col-span-1 py-3 px-4 rounded-md shadow-sm font-medium bg-gray-600 text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Copy to clipboard</button>
+                          <button id="save-btn" type="button" class="sm:col-span-2 py-3 px-4 rounded-md shadow-sm font-medium bg-gray-600 text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Save as .gcode</button>
+                        </div>
+                
+                        <p class="mt-4 text-sm text-gray-600">Tip: Always review the generated G-code in the box below before running it on the machine. Confirm travel limits and safe clearances.</p>
+                    </section>
+
+                </form>
+            </section>
+
+            <!-- Bottom: G-Code Output -->
+            <section class="bg-white p-6 rounded-lg shadow-lg" id="gcode-wrap">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-gray-700">Generated G-Code</h3>
+                     <span id="gcode-stats" class="text-sm text-gray-500"></span>
+                </div>
+                
+                <textarea id="gcode-output" class="w-full h-full p-3 font-mono text-sm bg-gray-900 text-green-400 rounded-md border-gray-700 shadow-inner focus:ring-indigo-500 focus:border-indigo-500" readonly placeholder="G-code will appear here..."></textarea>
+            </section>
+        </div>
+
+        <!-- UPDATED Footer -->
+        <footer style="text-align: center; font-size: 0.9em; color: #666; padding: 1em 0;" class="mt-8">
+            <p>© 2025 Bob Kolbasowski • <a href="https://github.com/rkolbi/GRBL-Maintenance-Generator" target="_blank" class="text-blue-600 hover:underline">Source Code</a> • Licensed under <a href="https://www.gnu.org/licenses/gpl-3.0.en.html" target="_blank" class="text-blue-600 hover:underline">GNU GPL v3.0</a></p>
+        </footer>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="success-modal" class="modal hidden fixed inset-0 flex items-center justify-center p-4">
+        <!-- Overlay -->
+        <div class="modal-overlay fixed inset-0 bg-black opacity-50"></div>
+        <!-- Content -->
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md relative z-50">
+            <h3 class="text-2xl font-semibold text-green-600 mb-4">Success!</h3>
+            <p class="text-gray-700 mb-6">Your G-code has been generated and is ready in the text box.</p>
+            <button id="success-close-btn" class="w-full py-2 px-4 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Close
+            </button>
+        </div>
+    </div>
+
+    <!-- Help Modal (UPDATED) -->
+    <div id="help-modal" class="modal hidden fixed inset-0 flex items-center justify-center p-4">
+        <!-- Overlay -->
+        <div class="modal-overlay fixed inset-0 bg-black opacity-50"></div>
+        <!-- Content -->
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl relative max-h-[80vh] overflow-y-auto z-50">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-2xl font-semibold text-gray-800">Settings Help</h3>
+                <button id="help-close-btn" class="text-gray-400 hover:text-gray-600 text-3xl font-bold">&times;</button>
+            </div>
+            
+            <!-- NEW HELP CONTENT -->
+            <div class="space-y-6 text-gray-700">
+
+                <div>
+                    <h4 class="text-lg font-semibold text-indigo-700 mb-2">Help & Safety Overview</h4>
+                    <p>Use this generator to create safe, spindle-off G-code for CNC maintenance routines such as grease distribution, axis cycling, and positioning for manual lubrication. All routines use conservative feeds and G1-only motion to minimize mechanical stress.</p>
+                </div>
+
+                <div>
+                    <h4 class="text-lg font-semibold text-indigo-700 mb-2">Why This Routine Matters</h4>
+                    <p>Simply moving an axis end-to-end only pushes grease around. This program uses a randomized “pecking” or “shingling” motion—moving forward, then partially back—to work lubricant into the bearings and distribute it evenly along the rails. This ensures smooth motion, prevents wear, and extends the life of your machine’s mechanical components.</p>
+                </div>
+
+                <div>
+                    <h4 class="text-lg font-semibold text-indigo-700 mb-2">The Truth About Woodworking CNCs</h4>
+                    <p class="mb-2">Community discussions reveal three universal truths about CNC maintenance:</p>
+                    <ol class="list-decimal list-inside space-y-3">
+                        <li>
+                            <strong>The Biggest Problem: Abrasive Paste</strong><br>
+                            Grease attracts dust. Fine sawdust—especially from MDF—mixes with exposed grease on the rails, forming a gritty, abrasive “lapping compound.” As the machine moves, this paste gets forced into bearing block seals, rapidly wearing down the internal ball bearings.
+                        </li>
+                        <li>
+                            <strong>The Best Solution: Wipe Dry</strong><br>
+                            Rails should never be left “wet” with grease. Lubricant belongs *inside* the bearing blocks—ideally via zerk fittings—not *on* the rails. The proper routine is: grease, jog the axes, then wipe the rails completely clean and dry.
+                        </li>
+                        <li>
+                            <strong>The Hardest Hurdle: Tedium</strong><br>
+                            Maintenance often fails due to inconsistency. Operators typically “grease and jog,” moving the machine only a few times. This does not purge old grease and is tedious, so the new grease rarely spreads evenly.
+                        </li>
+                    </ol>
+                </div>
+                
+                <div>
+                    <h4 class="text-lg font-semibold text-indigo-700 mb-2">Ideal Greasing Workflow</h4>
+                    <p class="mb-2">Grease is a dust magnet—rails that are “wet” with it quickly become abrasive. Follow this workflow to prevent damage:</p>
+                    <ol class="list-decimal list-inside space-y-2">
+                        <li><strong>Home the Machine:</strong> Run your machine's standard homing cycle ($H) first.</li>
+                        <li><strong>Apply Lubricant:</strong> Apply grease with a zerk fitting on the bearing block. If not available, use a *very thin* bead along the rail grooves.</li>
+                        <li><strong>Run This Program:</strong> Load and run the G-code generated by this tool. The pecking motion pulls grease into the bearing blocks and distributes it internally.</li>
+                        <li><strong>Wipe Rails Dry:</strong> After completion, use a clean, dry, lint-free cloth to remove *all* excess grease. Rails should appear slick and shiny, but never “wet” or goopy.</li>
+                    </ol>
+                    <p class="mt-2">
+                        <strong>Goal:</strong> Grease should reside *inside* the bearings, not *on* the rails.
+                    </p>
+                </div>
+
+                <div>
+                    <h4 class="text-lg font-semibold text-indigo-700 mb-2">Pre‑Flight Safety Checklist</h4>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li>Ensure spindle is OFF and cannot auto-start (physical disconnect recommended).</li>
+                        <li>Remove all tools/end mills from the spindle.</li>
+                        <li>Clear the work area of clamps, fixtures, and materials.</li>
+                        <li>Verify accurate machine travel limits (X/Y/Z).</li>
+                        <li>Confirm machine is homed if required by your controller.</li>
+                        <li>Check lubrication points and have grease/oil ready if using “service points” mode.</li>
+                        <li>Simulate or preview the G-code before running.</li>
+                        <li>Remain at the machine for the entire routine.</li>
+                    </ul>
+                </div>
+
+                <!-- NEW: Settings Storage Section -->
+                <div>
+                    <h4 class="text-lg font-semibold text-indigo-700 mb-2">Settings Storage</h4>
+                    <ul class="list-disc list-inside space-y-1 mt-1">
+                        <li><strong>Automatic Save:</strong> Your settings are automatically saved to your browser's local storage every time you click one of the "Generate" buttons.</li>
+                        <li><strong>Automatic Load:</strong> The next time you open this page, your saved settings will be loaded automatically.</li>
+                        <li><strong>Reset Defaults:</strong> To clear your saved settings and return to the original defaults, click the "Reset Defaults" button in the "Actions" section.</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="text-lg font-semibold text-indigo-700 mb-2">Settings Overview</h4>
+                </div>
+
+                <div>
+                    <h5 class="font-semibold text-gray-800">1. Axis Limits (Absolute Coordinates)</h5>
+                    <ul class="list-disc list-inside space-y-1 mt-1">
+                        <li><strong>X/Y/Z Start (Home):</strong> Machine's absolute coordinates after homing switches trigger (e.g., -10).</li>
+                        <li><strong>X/Y/Z End (Far):</strong> Maximum travel from the home position (e.g., -1270).</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h5 class="font-semibold text-gray-800">2. Routine Selection</h5>
+                    <ul class="list-disc list-inside space-y-1 mt-1">
+                        <li><strong>Select Axes to Exercise:</strong> Choose which axes to run. Uncheck axes you do not want to exercise.</li>
+                        <li><strong>Complete Cycles:</strong> Number of times to run the full routine for selected axes.</li>
+                        <li><strong>Z-Axis Sub-Cycles:</strong> Number of up-and-down Z routines per complete cycle (recommended: 2–3).</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h5 class="font-semibold text-gray-800">3. Motion Settings</h5>
+                    <ul class="list-disc list-inside space-y-1 mt-1">
+                        <li><strong>XY Min/Max Fwd Step (mm):</strong> Randomized forward peck distance for X/Y.</li>
+                        <li><strong>XY Rev Step (mm):</strong> Reverse peck distance for X/Y (one value is sufficient).</li>
+                        <li><strong>Z Min/Max Fwd Step (mm):</strong> Forward peck distance for Z (smaller than XY, e.g., 5–10mm).</li>
+                        <li><strong>Z Rev Step (mm):</strong> Reverse peck for Z (e.g., 2mm).</li>
+                        <li><strong>XY/Z Peck Speed (F):</strong> Work speed for pecking motion. Slower speeds ensure proper grease distribution.</li>
+                        <li><strong>Rapid Feed (F):</strong> Speed for initial Z lift and return home.</li>
+                        <li><strong>Exercise Feed (F) (NEW):</strong> The speed used for the X/Y moves in the "Generate Exercise G-Code" routine. This is separate from the pecking speed.</li>
+                        <li><strong>Pause Between Routines (sec):</strong> Dwell time between axis routines for inspection (e.g., G4 P5).</li>
+                    </ul>
+                    <div class="mt-2 p-3 bg-gray-100 rounded-md">
+                        <h6 class="font-semibold">Speed Guidelines:</h6>
+                        <ul class="list-disc list-inside space-y-1 mt-1">
+                            <li><strong>Work Speed:</strong> Slow is better; allows grease to penetrate bearings. Example: F1000 (XY), F500 (Z).</li>
+                            <li><strong>Travel Speed:</strong> Fast is fine; used only for initial/final Z lifts. Default F3000 is safe.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div>
+                    <h5 class="font-semibold text-gray-800">4. Positional Controls</h5>
+                    <ul class="list-disc list-inside space-y-1 mt-1">
+                        <li><strong>Y-Pos for X-Cycling:</strong> Y-coordinate for X-axis back-and-forth routine (e.g., -1240).</li>
+                        <li><strong>X-Pos for Y-Cycling:</strong> X-coordinate for Y-axis routine (e.g., -10).</li>
+                        <li><strong>X/Y-Pos for Z-Cycling:</strong> X/Y location for Z-axis routine (e.g., X-10, Y-1240) for convenient access.</li>
+                    </ul>
+                </div>
+
+                <!-- NEW: Actions Explanation -->
+                <div>
+                    <h5 class="font-semibold text-gray-800">5. Actions (The Buttons)</h5>
+                    <ul class="list-disc list-inside space-y-1 mt-1">
+                        <li><strong>Generate Greasing G-Code:</strong> This is the main function. It uses the "pecking" motion (Settings 3) at the specified locations (Settings 4) to perform a deep lubrication and purging routine.</li>
+                        <li><strong>Generate Exercise G-Code:</strong> This is a simpler, faster routine. It does *not* use pecking. It runs a full-speed (using "Exercise Feed") rectangular lap of the machine's X/Y limits (clockwise, then counter-clockwise) and cycles the Z-axis once per lap. This is good for a quick daily "warm-up" or for testing motion after assembly.</li>
+                    </ul>
+                </div>
+
+            </div>
+            <button id="help-close-btn-bottom" class="mt-6 w-full py-2 px-4 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Close
+            </button>
+        </div>
+    </div>
+
+
+    <!-- JAVASCRIPT -->
+    <script>
+        // --- CONSTANTS ---
+        const SETTINGS_KEY = 'cncMaintenanceGeneratorSettingsV1';
+        // A list of all input IDs for saving/loading
+        const allInputIds = [
+            'x-start', 'x-end', 'y-start', 'y-end', 'z-start', 'z-end',
+            'run-x', 'run-y', 'run-z', 'cycles', 'z-cycles',
+            'xy-min-fwd-step', 'xy-max-fwd-step', 'xy-rev-step',
+            'z-min-fwd-step', 'z-max-fwd-step', 'z-rev-step',
+            'xy-feed', 'z-feed', 'rapid-feed', 'exercise-feed', 'pause-between',
+            'x-cycle-y-pos', 'y-cycle-x-pos', 'z-cycle-x-pos', 'z-cycle-y-pos'
+        ];
+
+        // --- Modal Control ---
+        const helpBtn = document.getElementById('help-btn');
+        const helpModal = document.getElementById('help-modal');
+        const helpCloseBtn = document.getElementById('help-close-btn');
+        const helpCloseBtnBottom = document.getElementById('help-close-btn-bottom');
+
+        const successModal = document.getElementById('success-modal');
+        const successCloseBtn = document.getElementById('success-close-btn');
+
+        helpBtn.addEventListener('click', () => helpModal.classList.remove('hidden'));
+        helpCloseBtn.addEventListener('click', () => helpModal.classList.add('hidden'));
+        helpCloseBtnBottom.addEventListener('click', () => helpModal.classList.add('hidden'));
+
+        successCloseBtn.addEventListener('click', () => successModal.classList.add('hidden'));
+
+        // Close modals if overlay is clicked
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', () => {
+                helpModal.classList.add('hidden');
+                successModal.classList.add('hidden');
+            });
+        });
+
+        // --- G-Code Generation ---
+        document.getElementById('generate-grease-btn').addEventListener('click', generateGreaseProgram);
+        document.getElementById('generate-exercise-btn').addEventListener('click', generateExerciseProgram);
+        document.getElementById('copy-btn').addEventListener('click', copyToClipboard);
+        document.getElementById('save-btn').addEventListener('click', saveGCodeFile);
+        document.getElementById('reset-defaults-btn').addEventListener('click', resetSettings);
+
+
+        /**
+         * Wrapper for the Greasing G-Code button.
+         */
+        function generateGreaseProgram() {
+            saveSettings(); // Save settings on generate
+            runGreaseGeneration(); // Run the actual generation
+            successModal.classList.remove('hidden'); // Show success
+        }
+        
+        /**
+         * Wrapper for the Exercise G-Code button.
+         */
+        function generateExerciseProgram() {
+            saveSettings(); // Save settings on generate
+            runExerciseGeneration(); // Run the new generation function
+            successModal.classList.remove('hidden'); // Show success
+        }
+
+        /**
+         * NEW: Saves all form settings to localStorage
+         */
+        function saveSettings() {
+            const settings = {};
+            allInputIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el.type === 'checkbox') {
+                    settings[id] = el.checked;
+                } else {
+                    settings[id] = el.value;
+                }
+            });
+            
+            try {
+                localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+                console.log('Settings saved to localStorage.');
+            } catch (e) {
+                console.error('Failed to save settings to localStorage:', e);
+            }
+        }
+
+        /**
+         * NEW: Loads all form settings from localStorage
+         */
+        function loadSettings() {
+            try {
+                const savedSettings = localStorage.getItem(SETTINGS_KEY);
+                if (savedSettings) {
+                    const settings = JSON.parse(savedSettings);
+                    allInputIds.forEach(id => {
+                        if (settings[id] !== undefined) {
+                            const el = document.getElementById(id);
+                            if (el.type === 'checkbox') {
+                                el.checked = settings[id];
+                            } else {
+                                el.value = settings[id];
+                            }
+                        }
+                    });
+                    console.log('Settings loaded from localStorage.');
+                }
+            } catch (e) {
+                console.error('Failed to load settings from localStorage:', e);
+                // If data is corrupt, clear it
+                localStorage.removeItem(SETTINGS_KEY);
+            }
+        }
+
+        /**
+         * NEW: Clears settings from localStorage and reloads
+         */
+        function resetSettings() {
+            // FIXED: Removed confirm() dialog as it gets blocked.
+            try {
+                localStorage.removeItem(SETTINGS_KEY);
+                console.log('Settings cleared.');
+                location.reload();
+            } catch (e) {
+                console.error('Failed to clear settings:', e);
+                alert("Failed to clear settings. Please clear your browser cache manually.");
+            }
+        }
+
+        /**
+         * Gets all config values from the form.
+         */
+        function getConfig() {
+            // This function now reads directly from the form, which has been
+            // pre-populated by loadSettings() if any existed.
+            const config = {
+                limits: {
+                    x_start: parseFloat(document.getElementById('x-start').value),
+                    x_end:   parseFloat(document.getElementById('x-end').value),
+                    y_start: parseFloat(document.getElementById('y-start').value),
+                    y_end:   parseFloat(document.getElementById('y-end').value),
+                    z_start: parseFloat(document.getElementById('z-start').value),
+                    z_end:   parseFloat(document.getElementById('z-end').value),
+                },
+                run_axis: {
+                    x: document.getElementById('run-x').checked,
+                    y: document.getElementById('run-y').checked,
+                    z: document.getElementById('run-z').checked,
+                },
+                xy_steps: {
+                    min_fwd: parseFloat(document.getElementById('xy-min-fwd-step').value),
+                    max_fwd: parseFloat(document.getElementById('xy-max-fwd-step').value),
+                    rev:     parseFloat(document.getElementById('xy-rev-step').value),
+                },
+                z_steps: {
+                    min_fwd: parseFloat(document.getElementById('z-min-fwd-step').value),
+                    max_fwd: parseFloat(document.getElementById('z-max-fwd-step').value),
+                    rev:     parseFloat(document.getElementById('z-rev-step').value),
+                },
+                speeds: {
+                    xy:    parseInt(document.getElementById('xy-feed').value, 10),
+                    z:     parseInt(document.getElementById('z-feed').value, 10),
+                    rapid: parseInt(document.getElementById('rapid-feed').value, 10),
+                    exercise_feed: parseInt(document.getElementById('exercise-feed').value, 10) // NEW
+                },
+                positions: {
+                    x_cycle_y: parseFloat(document.getElementById('x-cycle-y-pos').value),
+                    y_cycle_x: parseFloat(document.getElementById('y-cycle-x-pos').value),
+                    z_cycle_x: parseFloat(document.getElementById('z-cycle-x-pos').value),
+                    z_cycle_y: parseFloat(document.getElementById('z-cycle-y-pos').value),
+                },
+                cycles: parseInt(document.getElementById('cycles').value, 10),
+                z_cycles: parseInt(document.getElementById('z-cycles').value, 10),
+                pause_sec: parseFloat(document.getElementById('pause-between').value) 
+            };
+            return config;
+        }
+
+        /**
+         * Main function to generate the GREASING G-code program.
+         */
+        function runGreaseGeneration() {
+            const config = getConfig();
+            
+            // Basic validation
+            if (isNaN(config.limits.z_start)) {
+                alert("Error: 'Z Start (Top)' is not a valid number. Please check your inputs.");
+                return;
+            }
+            if (isNaN(config.cycles) || config.cycles < 1) {
+                alert("Error: 'Grease Cycles' must be at least 1.");
+                return;
+            }
+            if (isNaN(config.z_cycles) || config.z_cycles < 1) { 
+                alert("Error: 'Z-Axis Sub-Cycles' must be at least 1.");
+                return;
+            }
+
+            let gcode = "";
+            let current_pos = {
+                x: config.limits.x_start,
+                y: config.limits.y_start,
+                z: config.limits.z_start
+            };
+
+            // Preamble
+            gcode += `(CNC Greasing G-Code Generated: ${new Date().toLocaleString()})\n`;
+            gcode += "(Routine: Pecking Lubrication)\n";
+            gcode += "(Using Absolute Coordinates)\n\n";
+            gcode += "G21 ; Set units to millimeters\n";
+            gcode += "G90 ; Set positioning to Absolute mode\n\n";
+            gcode += "$H ; Run the homing cycle\n";
+            gcode += `G1 Z${config.limits.z_start.toFixed(3)} F${config.speeds.rapid} ; Raise Z to safe height\n`;
+            current_pos.z = config.limits.z_start;
+            
+            const addPause = () => {
+                if (config.pause_sec > 0) {
+                    gcode += `\n(Pausing for ${config.pause_sec}s for inspection/greasing)\n`;
+                    gcode += `G4 P${config.pause_sec}\n\n`;
+                }
+            };
+            
+            for (let i = 1; i <= config.cycles; i++) {
+                gcode += `\n(--- START OF CYCLE ${i} OF ${config.cycles} ---)\n\n`;
+                
+                if (config.run_axis.x) {
+                    gcode += "; --- 1. Move to position for X-Axis cycling (Pecking) ---\n";
+                    gcode += generateShinglingCode('X', current_pos.x, config.limits.x_start, config.xy_steps.min_fwd, config.xy_steps.max_fwd, config.xy_steps.rev, config.speeds.xy);
+                    current_pos.x = config.limits.x_start;
+                    gcode += generateShinglingCode('Y', current_pos.y, config.positions.x_cycle_y, config.xy_steps.min_fwd, config.xy_steps.max_fwd, config.xy_steps.rev, config.speeds.xy);
+                    current_pos.y = config.positions.x_cycle_y;
+                    gcode += "\n";
+
+                    gcode += "; --- 2. X-AXIS: Start to End ---\n";
+                    gcode += generateShinglingCode('X', current_pos.x, config.limits.x_end, config.xy_steps.min_fwd, config.xy_steps.max_fwd, config.xy_steps.rev, config.speeds.xy);
+                    current_pos.x = config.limits.x_end;
+
+                    gcode += "\n; --- 3. X-AXIS: End to Start ---\n";
+                    gcode += generateShinglingCode('X', current_pos.x, config.limits.x_start, config.xy_steps.min_fwd, config.xy_steps.max_fwd, config.xy_steps.rev, config.speeds.xy);
+                    current_pos.x = config.limits.x_start;
+
+                    addPause();
+                }
+
+                if (config.run_axis.y) {
+                    gcode += "\n; --- 4. Move to position for Y-Axis cycling (Pecking) ---\n";
+                    gcode += generateShinglingCode('X', current_pos.x, config.positions.y_cycle_x, config.xy_steps.min_fwd, config.xy_steps.max_fwd, config.xy_steps.rev, config.speeds.xy);
+                    current_pos.x = config.positions.y_cycle_x;
+                    gcode += generateShinglingCode('Y', current_pos.y, config.limits.y_start, config.xy_steps.min_fwd, config.xy_steps.max_fwd, config.xy_steps.rev, config.speeds.xy);
+                    current_pos.y = config.limits.y_start;
+                    gcode += "\n";
+
+                    gcode += "; --- 5. Y-AXIS: Start to End ---\n";
+                    gcode += generateShinglingCode('Y', current_pos.y, config.limits.y_end, config.xy_steps.min_fwd, config.xy_steps.max_fwd, config.xy_steps.rev, config.speeds.xy);
+                    current_pos.y = config.limits.y_end;
+
+                    gcode += "\n; --- 6. Y-AXIS: End to Start ---\n";
+                    gcode += generateShinglingCode('Y', current_pos.y, config.limits.y_start, config.xy_steps.min_fwd, config.xy_steps.max_fwd, config.xy_steps.rev, config.speeds.xy);
+                    current_pos.y = config.limits.y_start;
+                    
+                    addPause();
+                }
+
+                if (config.run_axis.z) {
+                    gcode += "\n; --- 7. Move to position for Z-Axis cycling (Pecking) ---\n";
+                    gcode += generateShinglingCode('X', current_pos.x, config.positions.z_cycle_x, config.xy_steps.min_fwd, config.xy_steps.max_fwd, config.xy_steps.rev, config.speeds.xy);
+                    current_pos.x = config.positions.z_cycle_x;
+                    gcode += generateShinglingCode('Y', current_pos.y, config.positions.z_cycle_y, config.xy_steps.min_fwd, config.xy_steps.max_fwd, config.xy_steps.rev, config.speeds.xy);
+                    current_pos.y = config.positions.z_cycle_y;
+                    gcode += `G1 Z${current_pos.z.toFixed(3)} F${config.speeds.rapid}\n\n`;
+
+                    gcode += "; --- Start Z-Axis Sub-Cycles ---\n";
+                    for (let j = 1; j <= config.z_cycles; j++) {
+                        gcode += `(Z-Cycle ${j} of ${config.z_cycles})\n`;
+                        
+                        gcode += "\n; --- 8. Z-AXIS: Start to End (Down) ---\n";
+                        gcode += generateShinglingCode('Z', current_pos.z, config.limits.z_end, config.z_steps.min_fwd, config.z_steps.max_fwd, config.z_steps.rev, config.speeds.z);
+                        current_pos.z = config.limits.z_end;
+
+                        gcode += "\n; --- 9. Z-AXIS: End to Start (Up) ---\n";
+                        gcode += generateShinglingCode('Z', current_pos.z, config.limits.z_start, config.z_steps.min_fwd, config.z_steps.max_fwd, config.z_steps.rev, config.speeds.z);
+                        current_pos.z = config.limits.z_start;
+                    }
+                    gcode += "; --- End Z-Axis Sub-Cycles ---\n";
+                    
+                    addPause();
+                }
+            
+                gcode += `\n(--- END OF CYCLE ${i} ---)\n`;
+            }
+
+            gcode += "\n; --- MAINTENANCE COMPLETE (Pecking Home) ---\n";
+            gcode += generateShinglingCode('X', current_pos.x, config.limits.x_start, config.xy_steps.min_fwd, config.xy_steps.max_fwd, config.xy_steps.rev, config.speeds.xy);
+            current_pos.x = config.limits.x_start;
+             gcode += generateShinglingCode('Y', current_pos.y, config.limits.y_start, config.xy_steps.min_fwd, config.xy_steps.max_fwd, config.xy_steps.rev, config.speeds.xy);
+            current_pos.y = config.limits.y_start;
+            gcode += `G1 Z${current_pos.z.toFixed(3)} F${config.speeds.rapid}\n`; // Final Z lift
+            
+            gcode += "M5 ; Spindle Off (Safety)\n";
+            gcode += "\nM30 ; Program End and Reset\n";
+
+            updateGcodeOutput(gcode);
+        }
+
+        /**
+         * NEW: Main function to generate the EXERCISE G-code program.
+         */
+        function runExerciseGeneration() {
+            const config = getConfig();
+            
+            // Basic validation
+            if (isNaN(config.limits.z_start)) {
+                alert("Error: 'Z Start (Top)' is not a valid number. Please check your inputs.");
+                return;
+            }
+
+            let gcode = "";
+            // USE THE NEW EXERCISE FEED
+            const xy_speed = config.speeds.exercise_feed; 
+            const z_speed = config.speeds.z; // Z Peck speed is fine for up/down
+            const rapid_speed = config.speeds.rapid;
+
+            // Preamble
+            gcode += `(CNC Exercise G-Code Generated: ${new Date().toLocaleString()})\n`;
+            gcode += "(Routine: Clockwise & Counter-Clockwise Exercise)\n";
+            gcode += "(Using Absolute Coordinates)\n\n";
+            gcode += "G21 ; Set units to millimeters\n";
+            gcode += "G90 ; Set positioning to Absolute mode\n\n";
+            gcode += "M5 ; Spindle Off (Safety)\n";
+
+            // --- CLOCKWISE CYCLE ---
+            gcode += "(--- START CLOCKWISE ROTATION ---)\n";
+            gcode += "$H ; Run the homing cycle\n";
+            gcode += `G1 Z${config.limits.z_start.toFixed(3)} F${rapid_speed} ; Raise Z to safe height\n`;
+            
+            // Move from Home (Start) to Corner 2
+            gcode += `G1 X${config.limits.x_end.toFixed(3)} Y${config.limits.y_start.toFixed(3)} F${xy_speed}\n`;
+            // Move to Corner 3
+            gcode += `G1 X${config.limits.x_end.toFixed(3)} Y${config.limits.y_end.toFixed(3)} F${xy_speed}\n`;
+            // Move to Corner 4
+            gcode += `G1 X${config.limits.x_start.toFixed(3)} Y${config.limits.y_end.toFixed(3)} F${xy_speed}\n`;
+            
+            // Move to Z-Cycle Spot
+            gcode += `\n; --- Move to Z-Cycle Spot ---\n`;
+            gcode += `G1 X${config.positions.z_cycle_x.toFixed(3)} Y${config.positions.z_cycle_y.toFixed(3)} F${xy_speed}\n`;
+            
+            // Run Z-Cycle
+            gcode += `\n; --- Run Z-Cycle ---\n`;
+            gcode += `G1 Z${config.limits.z_end.toFixed(3)} F${z_speed}\n`;
+            gcode += `G1 Z${config.limits.z_start.toFixed(3)} F${z_speed}\n`;
+            
+            // Return to Home
+            gcode += `\n; --- Return to Home ---\n`;
+            gcode += `G1 X${config.limits.x_start.toFixed(3)} Y${config.limits.y_start.toFixed(3)} F${xy_speed}\n\n`;
+
+            // --- COUNTER-CLOCKWISE CYCLE ---
+            gcode += "(--- START COUNTER-CLOCKWISE ROTATION ---)\n";
+            gcode += "$H ; Run the homing cycle again\n";
+            gcode += `G1 Z${config.limits.z_start.toFixed(3)} F${rapid_speed} ; Raise Z to safe height\n`;
+
+            // Move from Home (Start) to Corner 4
+            gcode += `G1 X${config.limits.x_start.toFixed(3)} Y${config.limits.y_end.toFixed(3)} F${xy_speed}\n`;
+            // Move to Corner 3
+            gcode += `G1 X${config.limits.x_end.toFixed(3)} Y${config.limits.y_end.toFixed(3)} F${xy_speed}\n`;
+            // Move to Corner 2
+            gcode += `G1 X${config.limits.x_end.toFixed(3)} Y${config.limits.y_start.toFixed(3)} F${xy_speed}\n`;
+
+            // Move to Z-Cycle Spot
+            gcode += `\n; --- Move to Z-Cycle Spot ---\n`;
+            gcode += `G1 X${config.positions.z_cycle_x.toFixed(3)} Y${config.positions.z_cycle_y.toFixed(3)} F${xy_speed}\n`;
+            
+            // Run Z-Cycle
+            gcode += `\n; --- Run Z-Cycle ---\n`;
+            gcode += `G1 Z${config.limits.z_end.toFixed(3)} F${z_speed}\n`;
+            // *** FIXED TYPO HERE ***
+            gcode += `G1 Z${config.limits.z_start.toFixed(3)} F${z_speed}\n`;
+            
+            // Return to Home
+            gcode += `\n; --- Return to Home ---\n`;
+            gcode += `G1 X${config.limits.x_start.toFixed(3)} Y${config.limits.y_start.toFixed(3)} F${xy_speed}\n\n`;
+
+            // End program
+            gcode += "\nM30 ; Program End and Reset\n";
+            
+            updateGcodeOutput(gcode);
+        }
+
+        /**
+         * Updates the text area and stats
+         */
+        function updateGcodeOutput(gcode) {
+            // Display G-code in the textarea
+            const gcodeOutput = document.getElementById('gcode-output');
+            gcodeOutput.value = gcode;
+
+            // Update stats
+            const statsEl = document.getElementById('gcode-stats');
+            if (statsEl) {
+                statsEl.textContent = `${(gcode.match(/\n/g)||[]).length} lines`;
+            }
+        }
+
+        /**
+         * Generates a "shingling" G-code block for a single axis.
+         */
+        function generateShinglingCode(axis, start, end, min_fwd, max_fwd, rev_step, feed_rate) {
+            let gcode = "";
+            let current_pos = start;
+            
+            if (Math.abs(start - end) < 0.001) {
+                return `(No ${axis} move needed, already at ${start.toFixed(3)})\n`;
+            }
+            if (min_fwd > max_fwd) [min_fwd, max_fwd] = [max_fwd, min_fwd]; // Swap if needed
+            
+            const direction = (end > start) ? 1 : -1;
+
+            gcode += `G1 ${axis}${start.toFixed(3)} F${feed_rate}\n`; // Set speed and start pos
+
+            while (true) {
+                const fwd_step_rand = Math.random() * (max_fwd - min_fwd) + min_fwd;
+                const fwd_move = Math.abs(fwd_step_rand) * direction;
+                const rev_move = Math.abs(rev_step) * -direction; // Reverse is opposite
+
+                let next_fwd = current_pos + fwd_move;
+
+                if ((direction === 1 && next_fwd >= end) || (direction === -1 && next_fwd <= end)) {
+                    gcode += `G1 ${axis}${end.toFixed(3)} F${feed_rate}\n`; // Last move
+                    break;
+                }
+                gcode += `G1 ${axis}${next_fwd.toFixed(3)} F${feed_rate}\n`;
+
+                let next_rev = next_fwd + rev_move;
+
+                // Safety check (don't reverse past the start)
+                if ((direction === 1 && next_rev <= start) || (direction === -1 && next_rev >= start)) {
+                    next_rev = start;
+                }
+                
+                // Use the same feed rate for simplicity and smoothness
+                gcode += `G1 ${axis}${next_rev.toFixed(3)} F${feed_rate}\n`; 
+                current_pos = next_rev;
+            }
+            return gcode;
+        }
+        
+        /**
+         * Copies the content of the G-code output to the clipboard.
+         */
+        function copyToClipboard() {
+            const textarea = document.getElementById('gcode-output');
+            const button = document.getElementById('copy-btn');
+            
+            const tempInput = document.createElement('textarea');
+            tempInput.value = textarea.value;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(textarea.value).then(() => {
+                        showCopiedMessage(button);
+                    });
+                } else {
+                    document.execCommand('copy');
+                    showCopiedMessage(button);
+                }
+            } catch (err) {
+                console.error('Failed to copy G-code: ', err);
+                alert('Failed to copy to clipboard. Please copy manually.');
+            }
+            
+            document.body.removeChild(tempInput);
+        }
+        
+        /**
+         * Saves the G-code as a .gcode file.
+         */
+        function saveGCodeFile() {
+            const gcode = document.getElementById('gcode-output').value;
+            if (!gcode) {
+                alert("Please generate the G-code first.");
+                return;
+            }
+
+            let filename = prompt("Enter a filename for your G-code file:", "maintenance_routine.gcode");
+            if (filename === null) {
+                return;
+            }
+            if (!filename.toLowerCase().endsWith('.gcode')) {
+                filename += '.gcode';
+            }
+
+            const blob = new Blob([gcode], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function showCopiedMessage(button) {
+            const originalText = button.textContent;
+            button.textContent = 'Copied!';
+            button.classList.add('copied');
+            
+            setTimeout(() => {
+                button.textContent = originalText;
+                button.classList.remove('copied');
+            }, 2000);
+        }
+
+        // --- Initial Page Load ---
+        loadSettings(); // NEW: Load saved settings from localStorage first
+        runGreaseGeneration(); // Generate G-code on initial page load
+
+    </script>
+</body>
+</html>
