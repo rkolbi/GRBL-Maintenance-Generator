@@ -191,13 +191,13 @@ Run this whenever you want a **safe, predictable return to origin**.
 ; USER CONFIGURATION
 ; ==============================================================================
 ;XYZ Probe Plate settings
-%global.state.PLATE_THICKNESS = 12.3
+%global.state.PLATE_THICKNESS = 12.25
 %global.state.Z_FAST_PROBE_DISTANCE = 50
 %global.state.X_PLATE_OFFSET = -13.175
 %global.state.Y_PLATE_OFFSET = -13.175
 
 ; Tool-Height settings
-%global.state.SAFE_HEIGHT = -10
+%global.state.SAFE_HEIGHT = -5
 %global.state.PROBE_X_LOCATION = -1.5
 %global.state.PROBE_Y_LOCATION = -1224
 %global.state.PROBE_Z_LOCATION = -10
@@ -345,6 +345,17 @@ G0 X0 Y0                            ; Rapid move to X0 Y0 work zero
 ; https://github.com/cncjs/CNCjs-Macros/tree/master/Initial%20%26%20New%20Tool
 ; ==============================================================================
 
+; ==============================================================================
+; USER CONFIGURATION
+; ==============================================================================
+; Tool-Height settings
+%global.state.SAFE_HEIGHT = -5
+%global.state.PROBE_X_LOCATION = -1.5
+%global.state.PROBE_Y_LOCATION = -1224
+%global.state.PROBE_Z_LOCATION = -10
+%global.state.PROBE_DISTANCE = 100
+%global.state.PROBE_RAPID_FEEDRATE = 200
+
 %wait
 
 ; ==============================================================================
@@ -434,9 +445,8 @@ M5 (Ensuring spindle is stopped.)
 G21
 G90
 
-G53 G0 Z-10
+G53 G0 Z-5
 G53 G0 X-1.5 Y-1224
-G53 G0 Z-10
 ```
 
 ------
@@ -454,8 +464,9 @@ G21
 G90
 
 ; Raise to safe machine Z
-G53 G0 Z-10
+G53 G0 Z-5
 
 ; Go to work zero
 G0 X0 Y0
 ```
+
